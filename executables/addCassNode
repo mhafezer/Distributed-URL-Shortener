@@ -1,0 +1,9 @@
+#!/bin/bash
+USAGE="Usage: $0 IP_OF_MASTER IP_OF_NEW_NODE"
+
+if [ "$#" -ne 2 ]; then
+	echo "$USAGE"
+	exit 1
+fi
+echo $1 $2
+COMMAND="docker run --name cassandra-node -d -e CASSANDRA_BROADCAST_ADDRESS=$2 -p 7000:7000 -p 9042:9042 -e CASSANDRA_SEEDS=$1 -v /home/student/A2/cassandra-db:/var/lib/cassandra cassandra"

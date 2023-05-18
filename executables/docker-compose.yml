@@ -1,0 +1,133 @@
+version: '3.8'
+
+x-environment: &cassandra_nodes
+  - CASSANDRA_CLUSTER_SIZE=3
+  - CASSANDRA_NODE_0=10.11.1.104
+  - CASSANDRA_NODE_1=10.11.2.104
+  - CASSANDRA_NODE_2=10.11.3.104
+networks:
+  urlshortenernet:
+
+services:
+  redis_primary:
+    image: redis:latest
+    hostname: redis_primary
+    volumes: 
+      - '/home/student/A2/redis-db:/data'
+    deploy:
+      placement:
+        constraints: [node.role == manager]
+      restart_policy:
+        condition: on-failure
+    command:
+      - /bin/bash
+      - -c
+      - |
+        redis-server --appendonly yes --maxmemory 2gb --maxmemory-policy volatile-lru & while true; do if [ "`redis-cli ping`" == 'PONG' ]; then break; else sleep .5; echo flushDB; fi; done && redis-cli -n 0 FLUSHDB
+        wait
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 10s
+      timeout: 30s
+      retries: 5
+      start_period: 30s
+    networks:
+      - urlshortenernet
+    ports:
+      - '6379:6379'
+        
+  redis_secondary:
+    image: redis:latest
+    hostname: redis_secondary
+    deploy:
+      replicas: 2
+      placement:
+        constraints: [node.role == worker]
+        max_replicas_per_node: 1
+      restart_policy:
+        condition: on-failure
+    command: redis-server --slaveof redis_primary 6379
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 10s
+      timeout: 30s
+      retries: 5
+      start_period: 30s
+    networks:
+      - urlshortenernet
+
+  reverse_proxy:
+    image: traefik:v2.9
+    volumes:
+      - "/var/run/docker.sock:/var/run/docker.sock"
+    deploy:
+      restart_policy:
+        condition: on-failure
+      placement:
+        constraints: [node.role == manager]
+    command: 
+      - "--api.insecure=true"
+      - "--providers.docker"
+      - "--providers.docker.swarmMode=true"
+      - "--entrypoints.web.address=:80"
+      - "--providers.docker.exposedbydefault=false"
+      - "--providers.docker.endpoint=unix:///var/run/docker.sock"
+    healthcheck:
+      test: ["CMD-SHELL", "wget --quiet --tries=1 --spider http://127.0.0.1:8080/ || exit 1"]
+      interval: 10s
+      timeout: 30s
+      retries: 5
+      start_period: 30s
+    networks:
+      - urlshortenernet
+    ports:
+      - "4000:80"
+      - "8080:8080"
+
+  url_shortener:
+    image: eslamira/url_shortener:latest
+    deploy:
+      replicas: 2
+      placement:
+        max_replicas_per_node: 1
+      restart_policy:
+        condition: on-failure
+      labels:
+        - traefik.enable=true
+        - traefik.http.routers.url_shortener.rule=Method(`GET`, `POST`, `PUT`)
+        - traefik.http.services.url_shortener.loadbalancer.server.port=80
+    environment: *cassandra_nodes
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost"]
+      interval: 10s
+      timeout: 30s
+      retries: 5
+      start_period: 30s
+    networks:
+      - urlshortenernet
+  
+  writer:
+    image: eslamira/writer:latest
+    deploy:
+      replicas: 1
+      restart_policy:
+        condition: on-failure
+    environment: *cassandra_nodes
+    networks:
+      - urlshortenernet
+  
+  dashboard:
+    image: ghcr.io/heckenmann/docker-swarm-dashboard:master
+    deploy:
+      placement:
+        constraints:
+          - node.role == manager
+    volumes:
+      - "/var/run/docker.sock:/var/run/docker.sock"
+    environment:
+      DOCKER_API_VERSION: 1.35
+    networks:
+      - urlshortenernet
+    ports:
+      - "4001:8080"
+      

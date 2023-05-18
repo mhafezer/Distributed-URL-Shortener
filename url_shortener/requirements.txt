@@ -1,0 +1,4 @@
+Flask
+Redis
+fastwsgi
+cassandra-driver

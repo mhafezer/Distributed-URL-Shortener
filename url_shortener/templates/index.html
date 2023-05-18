@@ -1,0 +1,92 @@
+<!doctype html>
+<html>
+    <head>
+        <title>URL Shortener</title>
+    </head>
+    <body>
+        <div><h3 id="message">{{ message }}</h3></div>
+        <form onsubmit="return handle(event)">
+            <div><input type="text" placeholder="short url" id="short"/></div>
+            <div><input type="text" placeholder="long url" id="long"/></div>
+            <div><button type="submit" id="button">Shorten URL</button></div>
+        </form>
+    </body>
+    <script>
+        const sleep = ms => new Promise(r => setTimeout(r, ms));
+        async function handle(event) {
+            event.preventDefault();
+            document.querySelector('#button').disabled = true
+            document.getElementById("button").innerHTML = "Working...."
+            for (let i = 1; i < 13; i += 2) {
+                document.getElementById("message").innerHTML = ".".repeat(i)
+                await sleep(60)
+            }
+            short = document.getElementById("short").value;
+            long = document.getElementById("long").value;
+            fetch(`/?short=${short}&long=${long}`, { method: "PUT"})
+                .then(res => res.text())
+                .then(res=>document.getElementById("message").innerHTML = res)
+                .catch(error => document.getElementById("message").innerHTML = "Failed, all servers are down")
+            document.querySelector('#button').disabled = false
+            document.getElementById("button").innerHTML = "Shorten URL"
+        }
+    </script>
+    <style>
+        html * {
+            font-family: monospace !important; 
+        }
+        body, html {
+            background-color: ivory;
+            width: 100%;
+            height: 100%;
+            margin: 0;
+            padding: 0;
+            display:table;
+        }
+        body {
+            display:table-cell;
+            vertical-align:middle;
+        }
+        form {
+            width: 300px;
+            display: table;
+            text-align: center;
+            margin: auto;
+            padding: 10px;
+            background-color:salmon;
+            border-radius: 25px;
+            color: gray;
+            box-shadow: 5px 5px 0px 2px lightblue;
+        }
+        input {
+            margin: 5px;
+            width: 80%;
+            padding: 10px;
+            border: 0;
+            border-radius: 20px;
+        }
+        button {
+            color: gray;
+            background-color: wheat;
+            padding: 10px;
+            border: 0;
+            border-radius: 20px;
+        }
+        button:hover, button:disabled {
+            cursor: pointer;
+            background-color: rgb(250, 204, 118)
+        }
+
+        h3 {
+            display: table;
+            margin: auto;
+            padding: 15px;
+            margin-bottom: 5px;
+            width: auto;
+            color: gray;
+            background-color: wheat;
+            border-radius: 20px;
+            font-weight: normal;
+        }
+    </style>
+</html>
